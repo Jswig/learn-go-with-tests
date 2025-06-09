@@ -4,27 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"poker"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
-
-type Alert struct {
-	scheduledAt time.Duration
-	amount      int
-}
-
-func (a Alert) String() string {
-	return fmt.Sprintf("%d at %v", a.amount, a.scheduledAt)
-}
-
-type SpyBlindAlerter struct {
-	alerts []Alert
-}
-
-func (a *SpyBlindAlerter) ScheduleAlertAt(duration time.Duration, amount int) {
-	a.alerts = append(a.alerts, Alert{duration, amount})
-}
 
 func TestCLI(t *testing.T) {
 
@@ -129,6 +113,23 @@ func TestCLI(t *testing.T) {
 	})
 }
 
+type Alert struct {
+	scheduledAt time.Duration
+	amount      int
+}
+
+func (a Alert) String() string {
+	return fmt.Sprintf("%d at %v", a.amount, a.scheduledAt)
+}
+
+type SpyBlindAlerter struct {
+	alerts []Alert
+}
+
+func (a *SpyBlindAlerter) ScheduleAlertAt(duration time.Duration, amount int) {
+	a.alerts = append(a.alerts, Alert{duration, amount})
+}
+
 func TestGame(t *testing.T) {
 	t.Run("finishing records the winner", func(t *testing.T) {
 		winners := []string{"Chris", "Cleo"}
@@ -138,6 +139,61 @@ func TestGame(t *testing.T) {
 			game := poker.NewGame(playerStore, dummyAlerter)
 			game.Finish(winner)
 			poker.AssertPlayerWin(t, playerStore, winner)
+		}
+	})
+
+	t.Run("starting schedules printing blind values", func(t *testing.T) {
+		cases := []struct {
+			numPlayers     int
+			expectedAlerts []Alert
+		}{
+			{
+				5,
+				[]Alert{
+					{0 * time.Second, 100},
+					{10 * time.Minute, 200},
+					{20 * time.Minute, 300},
+					{30 * time.Minute, 400},
+					{40 * time.Minute, 500},
+					{50 * time.Minute, 600},
+					{60 * time.Minute, 800},
+					{70 * time.Minute, 1000},
+					{80 * time.Minute, 2000},
+					{90 * time.Minute, 4000},
+					{100 * time.Minute, 8000},
+				},
+			},
+			{
+				7,
+				[]Alert{
+					{0 * time.Second, 100},
+					{12 * time.Minute, 200},
+					{24 * time.Minute, 300},
+					{36 * time.Minute, 400},
+					{48 * time.Minute, 500},
+					{60 * time.Minute, 600},
+					{72 * time.Minute, 800},
+					{84 * time.Minute, 1000},
+					{96 * time.Minute, 2000},
+					{108 * time.Minute, 4000},
+					{120 * time.Minute, 8000},
+				},
+			},
+		}
+
+		for _, c := range cases {
+			dummyPlayerStore := &poker.StubPlayerStore{}
+			alerter := &SpyBlindAlerter{}
+			game := poker.NewGame(dummyPlayerStore, alerter)
+			game.Start(c.numPlayers)
+
+			if len(alerter.alerts) != len(c.expectedAlerts) {
+				t.Errorf("Expected %d alerts, but %d alerts were schedule", len(alerter.alerts), len(c.expectedAlerts))
+			}
+
+			if !slices.Equal(alerter.alerts, c.expectedAlerts) {
+				t.Errorf("Expected alerts %v, got %v", c.expectedAlerts, alerter.alerts)
+			}
 		}
 	})
 }
