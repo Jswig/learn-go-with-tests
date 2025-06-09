@@ -11,16 +11,20 @@ import (
 )
 
 type GameSpy struct {
-	NumPlayers int
-	Winner     string
+	NumPlayers   int
+	Winner       string
+	StartCalled  bool
+	FinishCalled bool
 }
 
 func (g *GameSpy) Start(numPlayers int) {
 	g.NumPlayers = numPlayers
+	g.StartCalled = true
 }
 
 func (g *GameSpy) Finish(winner string) {
 	g.Winner = winner
+	g.FinishCalled = true
 }
 
 func TestCli(t *testing.T) {
@@ -32,10 +36,7 @@ func TestCli(t *testing.T) {
 		cli := poker.NewCLI(input, output, game)
 		cli.PlayPoker()
 
-		gotPrompt := output.String()
-		if gotPrompt != poker.PlayerPrompt {
-			t.Errorf("got %q, want %q", gotPrompt, poker.PlayerPrompt)
-		}
+		assertMessagesSentToUser(t, output, poker.PlayerPrompt)
 
 		gotNumPlayers := game.NumPlayers
 		wantNumPlayers := 7
@@ -58,6 +59,43 @@ func TestCli(t *testing.T) {
 			t.Errorf("wanted Finish called with %s but got %s", want, got)
 		}
 	})
+
+	t.Run("it prints an error when a non numeric value is entered and does not start the game", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		in := strings.NewReader("Pies\n")
+		game := &GameSpy{}
+
+		cli := poker.NewCLI(in, out, game)
+		cli.PlayPoker()
+		if game.StartCalled {
+			t.Errorf("game should not have started")
+		}
+
+		assertMessagesSentToUser(t, out, poker.PlayerPrompt, poker.BadPlayerInputErrMsg)
+	})
+
+	t.Run("it prints an error when an invalid winner value is passed and does not finish the game", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		in := strings.NewReader("2\nLloyd is killed\n")
+		game := &GameSpy{}
+
+		cli := poker.NewCLI(in, out, game)
+		cli.PlayPoker()
+		if game.FinishCalled {
+			t.Errorf("game should not have finished")
+		}
+
+		assertMessagesSentToUser(t, out, poker.PlayerPrompt, poker.BadWinnerInputErrMsg)
+	})
+}
+
+func assertMessagesSentToUser(t testing.TB, stdout *bytes.Buffer, messages ...string) {
+	t.Helper()
+	want := strings.Join(messages, "")
+	got := stdout.String()
+	if got != want {
+		t.Errorf("got %q sent to stdout but expected %q", got, want)
+	}
 }
 
 type Alert struct {

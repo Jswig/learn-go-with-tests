@@ -42,6 +42,10 @@ func (game *TexasHoldEm) Finish(winner string) {
 
 const PlayerPrompt = "Please enter the number of players: "
 
+const BadPlayerInputErrMsg = "Bad value received for number of players, please try again with a number"
+
+const BadWinnerInputErrMsg = "Bad value received for winner input, correct format is '<player name> wins'"
+
 type CLI struct {
 	input  *bufio.Scanner
 	output io.Writer
@@ -53,16 +57,31 @@ func (cli *CLI) readLine() string {
 	return cli.input.Text()
 }
 
-func extractWinner(text string) string {
-	return strings.Replace(text, " wins", "", 1)
+func extractWinner(text string) (string, error) {
+	winner := strings.Replace(text, " wins", "", 1)
+	if winner == text {
+		return "", fmt.Errorf("invalid winner input %q", text)
+	}
+	return winner, nil
 }
 
 func (cli *CLI) PlayPoker() {
 	fmt.Fprint(cli.output, PlayerPrompt)
-	numPlayers, _ := strconv.Atoi(cli.readLine())
+	numPlayers, err := strconv.Atoi(cli.readLine())
+	if err != nil {
+		fmt.Fprint(cli.output, BadPlayerInputErrMsg)
+		return
+	}
 	cli.game.Start(numPlayers)
 	userInput := cli.readLine()
-	cli.game.Finish(extractWinner(userInput))
+	if userInput != "" {
+		winner, err := extractWinner(userInput)
+		if err != nil {
+			fmt.Fprint(cli.output, BadWinnerInputErrMsg)
+			return
+		}
+		cli.game.Finish(winner)
+	}
 }
 
 func NewCLI(input io.Reader, output io.Writer, game Game) *CLI {
