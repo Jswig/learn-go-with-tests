@@ -129,6 +129,19 @@ func TestCLI(t *testing.T) {
 	})
 }
 
+func TestGame(t *testing.T) {
+	t.Run("finishing records the winner", func(t *testing.T) {
+		winners := []string{"Chris", "Cleo"}
+		for _, winner := range winners {
+			playerStore := &poker.StubPlayerStore{}
+			dummyAlerter := &SpyBlindAlerter{}
+			game := poker.NewGame(playerStore, dummyAlerter)
+			game.Finish(winner)
+			poker.AssertPlayerWin(t, playerStore, winner)
+		}
+	})
+}
+
 func assertScheduledAlert(t *testing.T, got Alert, want Alert) {
 	if got.amount != want.amount {
 		t.Errorf("got amount %d, want %d", got.amount, want.amount)
