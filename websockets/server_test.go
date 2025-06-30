@@ -19,7 +19,7 @@ func TestGETPlayers(t *testing.T) {
 	}
 	winCalls := make([]string, 0)
 	store := &StubPlayerStore{scores, winCalls}
-	server := NewPlayerServer(store)
+	server := mustMakePlayerServer(t, store)
 	t.Run("returns Pepper's score", func(t *testing.T) {
 		request := newGetScoreRequest("Pepper")
 		response := httptest.NewRecorder()
@@ -51,11 +51,11 @@ func TestGETPlayers(t *testing.T) {
 }
 
 func TestStoreWins(t *testing.T) {
-	store := StubPlayerStore{
+	store := &StubPlayerStore{
 		map[string]int{},
 		[]string{},
 	}
-	server := NewPlayerServer(&store)
+	server := mustMakePlayerServer(t, store)
 
 	t.Run("it records win on POST", func(t *testing.T) {
 		request := newPostWinRequest("Pepper")
@@ -78,8 +78,8 @@ func TestLeague(t *testing.T) {
 		"Pepper": 20,
 		"Floyd":  10,
 	}
-	store := StubPlayerStore{scores, []string{}}
-	server := NewPlayerServer(&store)
+	store := &StubPlayerStore{scores, []string{}}
+	server := mustMakePlayerServer(t, store)
 
 	t.Run("it returns 200 on /league", func(t *testing.T) {
 		request := newLeagueRequest()
@@ -101,7 +101,7 @@ func TestLeague(t *testing.T) {
 
 func TestGame(t *testing.T) {
 	t.Run("GET /game returns 200", func(t *testing.T) {
-		server := NewPlayerServer(&StubPlayerStore{})
+		server := mustMakePlayerServer(t, &StubPlayerStore{})
 		request := newGameRequest()
 		response := httptest.NewRecorder()
 
@@ -112,7 +112,8 @@ func TestGame(t *testing.T) {
 	t.Run("when we get a message over a websocket it is a winner of a game", func(t *testing.T) {
 		store := &StubPlayerStore{}
 		winner := "Ruth"
-		server := httptest.NewServer(NewPlayerServer(store))
+		playerServer := mustMakePlayerServer(t, store)
+		server := httptest.NewServer(playerServer)
 		defer server.Close()
 
 		socketURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
@@ -131,6 +132,14 @@ func TestGame(t *testing.T) {
 		AssertPlayerWin(t, store, winner)
 	})
 
+}
+
+func mustMakePlayerServer(t *testing.T, store PlayerStore) *PlayerServer {
+	server, err := NewPlayerServer(store)
+	if err != nil {
+		t.Fatal("problem creating player server", err)
+	}
+	return server
 }
 
 func getLeagueFromResponse(t testing.TB, response *httptest.ResponseRecorder) (league []Player) {

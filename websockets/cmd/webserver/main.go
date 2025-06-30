@@ -17,7 +17,10 @@ func main() {
 	}
 	defer cleanup()
 
-	server := poker.NewPlayerServer(store)
+	server, err := poker.NewPlayerServer(store)
+	if err != nil {
+		log.Fatalf("could not set up server: %v", err)
+	}
 
 	port := ":5000"
 	fmt.Printf("Starting server on port %s...", port[1:])

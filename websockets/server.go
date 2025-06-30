@@ -12,6 +12,8 @@ import (
 
 const jsonContentType = "application/json"
 
+const gameTemplatePath = "game.html"
+
 type Player struct {
 	Name string
 	Wins int
@@ -24,11 +26,12 @@ type PlayerStore interface {
 }
 
 type PlayerServer struct {
-	store PlayerStore
+	store        PlayerStore
+	gameTemplate *template.Template
 	http.Handler
 }
 
-func NewPlayerServer(store PlayerStore) *PlayerServer {
+func NewPlayerServer(store PlayerStore) (*PlayerServer, error) {
 	server := new(PlayerServer)
 	server.store = store
 
@@ -38,7 +41,14 @@ func NewPlayerServer(store PlayerStore) *PlayerServer {
 	router.Handle("/game", http.HandlerFunc(server.handleGame))
 	router.Handle("/ws", http.HandlerFunc(server.webSocket))
 	server.Handler = router
-	return server
+
+	tmpl, err := template.ParseFiles(gameTemplatePath)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing template: %v", err)
+	}
+	server.gameTemplate = tmpl
+
+	return server, nil
 }
 
 func (server *PlayerServer) handlePlayers(writer http.ResponseWriter, request *http.Request) {
@@ -58,18 +68,15 @@ func (server *PlayerServer) handleLeague(writer http.ResponseWriter, request *ht
 }
 
 func (server *PlayerServer) handleGame(writer http.ResponseWriter, request *http.Request) {
-	tmpl, err := template.ParseFiles("game.html")
-	if err != nil {
-		http.Error(writer, fmt.Sprintf("error parsing template: %v", err.Error()), http.StatusInternalServerError)
-	}
-	tmpl.Execute(writer, nil)
+	server.gameTemplate.Execute(writer, nil)
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
 
 func (server *PlayerServer) webSocket(writer http.ResponseWriter, request *http.Request) {
-	var upgrader = websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
 	conn, err := upgrader.Upgrade(writer, request, nil)
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("error creating websocket connection: %v", err.Error()), http.StatusInternalServerError)
